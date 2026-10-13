@@ -1,10 +1,13 @@
 import { api } from "./api-client";
-import type { CarouselContent, ContentItem, ContentStatus, ContentType, ContentVersion, Paginated, RenderRequest, ReelClip } from "@/types";
+import type { CarouselContent, ContentItem, ContentStatus, ContentType, ContentVersion, Paginated, RenderRequest, ReelClip, SocialPlatform } from "@/types";
 
 export interface ContentListParams {
   status?: ContentStatus;
   type?: ContentType;
   sermonId?: string;
+  generationId?: string;
+  /** Content with a saved social post targeting this platform. */
+  channel?: SocialPlatform;
   q?: string;
   scheduled?: boolean;
   page?: number;
@@ -16,6 +19,18 @@ export type RewriteAction = "SHORTEN" | "EXPAND" | "WARMER" | "CONVERSATIONAL" |
 export const contentService = {
   list: (params: ContentListParams, signal?: AbortSignal): Promise<Paginated<ContentItem>> =>
     api.getPage<ContentItem>("/content", { params: { ...params }, signal }),
+  /** Read every matching page so a content group is never split across pages. */
+  listAll: async (params: Omit<ContentListParams, "page" | "pageSize">, signal?: AbortSignal): Promise<Paginated<ContentItem>> => {
+    const first = await contentService.list({ ...params, page: 1, pageSize: 100 }, signal);
+    const items = [...first.items];
+    if (first.pageSize < 1) throw new Error("Invalid content page size");
+    const pages = Math.ceil(first.total / first.pageSize);
+    for (let page = 2; page <= pages; page++) {
+      const next = await contentService.list({ ...params, page, pageSize: first.pageSize }, signal);
+      items.push(...next.items);
+    }
+    return { ...first, items, total: items.length };
+  },
   get: (id: string, signal?: AbortSignal) => api.get<ContentItem>(`/content/${id}`, { signal }),
   update: (id: string, v: { title?: string; body?: string; scripture?: string; structured?: { carousel?: CarouselContent; reel?: ReelClip } }) =>
     api.patch<ContentItem>(`/content/${id}`, v),

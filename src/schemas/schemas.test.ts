@@ -20,8 +20,23 @@ describe("schemas", () => {
         email: "g@church.org",
         password: "abcd1234",
         confirmPassword: "abcd1234",
+        phoneNumber: "+234 801 234 5678",
       }).success,
     ).toBe(true);
+  });
+  it("accepts signup with omitted or provided optional church details", () => {
+    const base = {
+      fullName: "Grace A",
+      email: "g@church.org",
+      password: "abcd1234",
+      confirmPassword: "abcd1234",
+      phoneNumber: "08012345678",
+    };
+    expect(signupSchema.safeParse(base).success).toBe(true);
+    expect(signupSchema.safeParse({ ...base, churchName: "Grace Church", denomination: "Baptist", churchAddress: "1 Church Road", primaryColor: "#123456" }).success).toBe(true);
+    expect(signupSchema.safeParse({ ...base, primaryColor: "red" }).success).toBe(false);
+    expect(signupSchema.safeParse({ ...base, phoneNumber: "" }).success).toBe(false);
+    expect(signupSchema.safeParse({ ...base, phoneNumber: "phone" }).success).toBe(false);
   });
   it("requires an email on login", () => {
     expect(loginSchema.safeParse({ email: "", password: "x", remember: false }).success).toBe(false);

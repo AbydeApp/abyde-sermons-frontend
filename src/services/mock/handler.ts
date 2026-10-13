@@ -89,7 +89,7 @@ function meOf(db: MockDb, userId: string | null): MeResponse {
   if (!u) return { authenticated: false, user: null, onboardingCompleted: false, church: null };
   return {
     authenticated: true,
-    user: { id: u.id, fullName: u.fullName, email: u.email },
+    user: { id: u.id, fullName: u.fullName, email: u.email, phoneNumber: u.phoneNumber ?? null },
     onboardingCompleted: u.onboardingCompleted,
     church: db.churches[u.id] ?? null,
   };
@@ -293,6 +293,7 @@ function groupOf(db: MockDb, groupId: string): GenerationGroup {
   const done = jobs.every((j) => j.status === "COMPLETED" || j.status === "FAILED");
   if (done && !g.materialized) {
     g.materialized = true;
+    g.contentIds = [];
     const sermon = db.sermons[uid].find((s) => s.id === g.sermonId)!;
     const counts: Partial<Record<ContentType, number>> = { DEVOTIONAL: 7, SOCIAL_POST: 7, WHATSAPP: 3, QUOTE: 3 };
     const list = db.content[uid];
@@ -300,6 +301,7 @@ function groupOf(db: MockDb, groupId: string): GenerationGroup {
       for (let n = 1; n <= (counts[t] ?? 1); n++) {
         const c = makeContent(nextId(db, "c"), sermon, t, n);
         list.push(c);
+        g.contentIds.push(c.id);
         db.versions[c.id] = [firstVersion(c)];
       }
     }
@@ -379,8 +381,26 @@ const routes: Route[] = [
     ({ db, body }) => {
       const email = String(body.email).trim().toLowerCase();
       if (db.users.some((x) => x.email === email)) fail(409, "EMAIL_TAKEN", "An account with this email already exists.", { email: ["Already in use"] });
+      const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
+      const phoneDigits = phoneNumber.replace(/\D/g, "");
+      if (!/^\+?[0-9\s().-]+$/.test(phoneNumber) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+        fail(422, "VALIDATION_ERROR", "Enter a valid phone number.", { phoneNumber: ["Enter a valid phone number"] });
+      }
       const id = nextId(db, "user");
-      db.users.push({ id, fullName: String(body.fullName), email, password: String(body.password), onboardingCompleted: false });
+      const fullName = String(body.fullName);
+      const churchName = typeof body.churchName === "string" && body.churchName.trim() ? body.churchName.trim() : "Your Ministry";
+      db.users.push({ id, fullName, email, password: String(body.password), phoneNumber, onboardingCompleted: true });
+      db.churches[id] = {
+        id: nextId(db, "church"),
+        name: churchName,
+        slug: churchName.toLowerCase().replace(/\W+/g, "-"),
+        ownerRole: "",
+        denomination: typeof body.denomination === "string" && body.denomination.trim() ? body.denomination.trim() : null,
+        address: typeof body.churchAddress === "string" && body.churchAddress.trim() ? body.churchAddress.trim() : null,
+        primaryColor: typeof body.primaryColor === "string" && body.primaryColor ? body.primaryColor : null,
+        secondaryColor: typeof body.secondaryColor === "string" && body.secondaryColor ? body.secondaryColor : null,
+        accentColor: typeof body.accentColor === "string" && body.accentColor ? body.accentColor : null,
+      };
       db.sermons[id] = [];
       db.content[id] = [];
       db.integrations[id] = DEFAULT_INTEGRATIONS.map((i) => ({ ...i }));
@@ -617,14 +637,24 @@ const routes: Route[] = [
     "GET",
     /^\/content$/,
     ({ db, q }) => {
+      const generationId = q.get("generationId");
+      const generation = generationId ? db.groups.find((group) => group.id === generationId && group.sermonId === q.get("sermonId")) : undefined;
       const term = q.get("q")?.toLowerCase();
       const scheduled = q.get("scheduled");
+      const channel = q.get("channel");
+      const channelContentIds = new Set(
+        (db.posts[currentUser(db).id] ?? [])
+          .filter((post) => post.targets.some((target) => target.platform === channel))
+          .map((post) => post.contentId),
+      );
       const all = contentOf(db)
         .filter(
           (c) =>
             (!q.get("status") || c.status === q.get("status")) &&
             (!q.get("type") || c.type === q.get("type")) &&
             (!q.get("sermonId") || c.sermonId === q.get("sermonId")) &&
+            (!channel || channelContentIds.has(c.id)) &&
+            (!generationId || !!generation?.contentIds?.includes(c.id)) &&
             (scheduled === null || (scheduled === "true") === !!c.calendarItemId) &&
             (!term || `${c.title} ${c.body}`.toLowerCase().includes(term)),
         )

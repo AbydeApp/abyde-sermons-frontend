@@ -13,11 +13,18 @@ export const contentKeys = {
   versions: (id: string) => ["content", "versions", id] as const,
 };
 
-export const useContentList = (params: ContentListParams) =>
+export const useContentList = (params: ContentListParams, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: contentKeys.list(params),
     queryFn: ({ signal }) => contentService.list(params, signal),
     placeholderData: keepPreviousData,
+  });
+
+export const useGroupedContentList = (params: Omit<ContentListParams, "page" | "pageSize">) =>
+  useQuery({
+    queryKey: ["content", "grouped", params],
+    queryFn: ({ signal }) => contentService.listAll(params, signal),
   });
 
 /** Polls while a render is in flight so `visual.status` flips to READY on its own. */
@@ -72,6 +79,21 @@ export function useContentMutations(id: string) {
 export function useDeleteContent() {
   const r = useRefreshers();
   return useMutation({ mutationFn: (id: string) => contentService.remove(id), onSuccess: r.all });
+}
+
+/** Deletes independently so a failed item doesn't hide successful deletions. */
+export function useDeleteContentBatch() {
+  const r = useRefreshers();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => contentService.remove(id)));
+      return {
+        deleted: ids.filter((_, index) => results[index].status === "fulfilled"),
+        failed: ids.filter((_, index) => results[index].status === "rejected"),
+      };
+    },
+    onSuccess: r.all,
+  });
 }
 
 export const useCalendarRange = (from: string, to: string) =>

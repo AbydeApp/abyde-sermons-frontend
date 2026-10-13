@@ -32,6 +32,7 @@ export interface MockGroup {
   types: ContentType[];
   startedAt: number;
   materialized: boolean;
+  contentIds?: string[];
 }
 
 export interface MockPost {
@@ -62,7 +63,7 @@ export interface MockRender {
 }
 
 export interface MockDb {
-  users: { id: string; fullName: string; email: string; password: string; onboardingCompleted: boolean }[];
+  users: { id: string; fullName: string; email: string; password: string; phoneNumber?: string; onboardingCompleted: boolean }[];
   sessionUserId: string | null;
   churches: Record<string, Church>;
   sermons: Record<string, MockSermon[]>;
@@ -107,7 +108,7 @@ export function defaultBrand(church: Church | undefined, churchId: string): Bran
     alternateLogoAssetId: null,
     primaryColor: church?.primaryColor || "#B5502F",
     secondaryColor: church?.secondaryColor || "#1B1A17",
-    accentColor: "#E8A87C",
+    accentColor: church?.accentColor || "#E8A87C",
     headingFont: "Fraunces",
     bodyFont: "Inter",
     socialHandle: null,

@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/utils/cn";
 
 const field =
-  "w-full rounded-md border border-border-strong bg-card px-3 text-sm placeholder:text-muted-foreground/70 transition-colors focus-visible:border-accent focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent/25 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 aria-[invalid=true]:border-danger aria-[invalid=true]:outline-danger/20";
+  "w-full rounded-md border border-border-strong bg-card px-3 text-sm placeholder:text-muted-foreground/70 transition-colors focus-visible:outline-none focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70 aria-[invalid=true]:border-danger aria-[invalid=true]:focus-visible:border-danger aria-[invalid=true]:focus-visible:ring-danger/20";
 
 export function Input({ className, type = "text", ...props }: React.ComponentProps<"input">) {
   return <input type={type} className={cn(field, "h-9", className)} {...props} />;
@@ -13,7 +13,7 @@ export function Textarea({ className, ...props }: React.ComponentProps<"textarea
 }
 
 export function Label({ className, ...props }: React.ComponentProps<"label">) {
-  return <label className={cn("text-[13px] font-medium", className)} {...props} />;
+  return <label className={cn("text-[13px] mb-5 font-medium", className)} {...props} />;
 }
 
 /** Label + control + hint/error, wired with aria attributes. */

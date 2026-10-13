@@ -9,7 +9,8 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Start with your first sermon"
-      description="Create your account. Setting up your church takes about a minute."
+      description="Create your account and add your ministry details. Ministry information is optional."
+      wide
       footer={
         <>
           Already have an account?{" "}

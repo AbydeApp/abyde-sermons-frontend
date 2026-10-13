@@ -49,7 +49,7 @@ export function Header({ session }: { session: Session }) {
       <div className="ml-auto">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="gap-2 px-2 py-1.5 h-auto hidden sm:flex items-center">
+            <Button variant="ghost" className="gap-2 px-2 py-1.5 h-auto hidden sm:flex items-center focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
               <div className="flex flex-col items-end text-sm">
                 <span className="font-medium text-foreground">{session.user.fullName}</span>
                 {session.church && (

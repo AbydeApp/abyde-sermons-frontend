@@ -22,18 +22,58 @@ describe("mock backend follows the backend contract", () => {
     await expect(get("/dashboard")).rejects.toMatchObject({ status: 401 });
   });
 
-  it("register -> not onboarded -> creating the church completes onboarding", async () => {
-    const reg = await post<{ onboardingCompleted: boolean; church: unknown }>("/auth/register", {
+  it("registers required phone and optional ministry details", async () => {
+    const reg = await post<{
+      onboardingCompleted: boolean;
+      user: { phoneNumber: string };
+      church: { name: string; denomination: string; address: string; primaryColor: string; secondaryColor: string; accentColor: string };
+    }>("/auth/register", {
       fullName: "Test User",
       email: `t${Date.now()}@x.org`,
       password: "abcd1234",
+      phoneNumber: "+234 801 234 5678",
+      churchName: "Test Church",
+      denomination: "Baptist",
+      churchAddress: "1 Test Road",
+      primaryColor: "#123456",
+      secondaryColor: "#234567",
+      accentColor: "#345678",
     });
-    expect(reg.onboardingCompleted).toBe(false);
-    expect(reg.church).toBeNull();
-    const after = await post<{ onboardingCompleted: boolean; church: { name: string } }>("/church", { name: "Test Church", ownerRole: "Pastor" });
-    expect(after.onboardingCompleted).toBe(true);
-    expect(after.church.name).toBe("Test Church");
+    expect(reg.onboardingCompleted).toBe(true);
+    expect(reg.user.phoneNumber).toBe("+234 801 234 5678");
+    expect(reg.church).toMatchObject({
+      name: "Test Church",
+      denomination: "Baptist",
+      address: "1 Test Road",
+      primaryColor: "#123456",
+      secondaryColor: "#234567",
+      accentColor: "#345678",
+    });
+    expect(await get<{ primaryColor: string; secondaryColor: string; accentColor: string }>("/brand-studio")).toMatchObject({
+      primaryColor: "#123456",
+      secondaryColor: "#234567",
+      accentColor: "#345678",
+    });
     await expect(post("/church", { name: "Second", ownerRole: "Pastor" })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("registers without optional church details", async () => {
+    const reg = await post<{ onboardingCompleted: boolean; church: { name: string; denomination: string | null } }>("/auth/register", {
+      fullName: "Test User",
+      email: `t${Date.now()}@x.org`,
+      password: "abcd1234",
+      phoneNumber: "08012345678",
+    });
+    expect(reg.onboardingCompleted).toBe(true);
+    expect(reg.church).toMatchObject({ name: "Your Ministry", denomination: null });
+  });
+
+  it("rejects registration without a valid phone number", async () => {
+    await expect(post("/auth/register", {
+      fullName: "Test User",
+      email: `t${Date.now()}@x.org`,
+      password: "abcd1234",
+    })).rejects.toMatchObject({ status: 422, fields: { phoneNumber: "Enter a valid phone number" } });
   });
 
   it("rejects wrong password with INVALID_CREDENTIALS", async () => {

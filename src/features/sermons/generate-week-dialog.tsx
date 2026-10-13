@@ -2,6 +2,7 @@
 
 import { AlertCircle, Check, Loader2, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function GenerateWeekDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
+  const router = useRouter();
   const [selected, setSelected] = useState<Set<ContentType>>(new Set(ALL));
   const [jobId, setJobId] = useState<string | null>(null);
   const start = useStartGeneration(sermonId);
@@ -60,7 +62,11 @@ export function GenerateWeekDialog({
 
   function begin(types: ContentType[]) {
     start.mutate(types, {
-      onSuccess: (j) => setJobId(j.id),
+      onSuccess: (j) => {
+        setJobId(j.id);
+        onOpenChange(false);
+        router.push(`/sermons/${encodeURIComponent(sermonId)}/preview?generationId=${encodeURIComponent(j.id)}`);
+      },
       onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't start generation."),
     });
   }

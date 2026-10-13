@@ -20,7 +20,7 @@ export function useSession() {
 /** Where a session should land, per the product's redirect rules. */
 export function homeFor(session: Session | null | undefined) {
   if (!session) return "/login";
-  return session.user.onboardingComplete && session.church ? "/dashboard" : "/onboarding";
+  return "/dashboard";
 }
 
 export function useLogout() {

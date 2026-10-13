@@ -4,6 +4,7 @@ export interface User {
   id: string;
   fullName: string;
   email: string;
+  phoneNumber?: string | null;
   onboardingComplete: boolean;
 }
 
@@ -13,12 +14,14 @@ export interface Church {
   slug?: string;
   ownerRole: string;
   denomination?: string | null;
+  address?: string | null;
   website?: string | null;
   description?: string | null;
   logoUrl?: string | null;
   preferredBibleTranslation?: string | null;
   primaryColor?: string | null;
   secondaryColor?: string | null;
+  accentColor?: string | null;
   devotionalTone?: string | null;
   socialTone?: string | null;
   audienceDescription?: string | null;
@@ -29,7 +32,7 @@ export interface Church {
 /** Response of GET /auth/me, POST /auth/login, POST /auth/register, POST /church. */
 export interface MeResponse {
   authenticated: boolean;
-  user: { id: string; fullName: string; email: string } | null;
+  user: { id: string; fullName: string; email: string; phoneNumber?: string | null } | null;
   onboardingCompleted: boolean;
   church: Church | null;
 }

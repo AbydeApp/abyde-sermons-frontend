@@ -20,6 +20,20 @@ export const signupSchema = z
     email,
     password,
     confirmPassword: z.string().min(1, "Confirm your password"),
+    phoneNumber: z
+      .string()
+      .trim()
+      .min(1, "Enter your phone number")
+      .refine((value) => {
+        const digits = value.replace(/\D/g, "");
+        return /^\+?[0-9\s().-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
+      }, "Enter a valid phone number"),
+    churchName: z.string().trim().optional(),
+    denomination: z.string().trim().optional(),
+    churchAddress: z.string().trim().optional(),
+    primaryColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
+    secondaryColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
+    accentColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
   })
   .refine((v) => v.password === v.confirmPassword, {
     path: ["confirmPassword"],
