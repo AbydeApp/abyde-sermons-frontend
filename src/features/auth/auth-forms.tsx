@@ -1,0 +1,234 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, Input, fieldA11y } from "@/components/ui/input";
+import { useMockApi } from "@/config/env";
+import { SESSION_KEY, homeFor, useSession } from "@/hooks/use-session";
+import {
+  forgotSchema,
+  loginSchema,
+  resetSchema,
+  signupSchema,
+  type ForgotValues,
+  type LoginValues,
+  type ResetValues,
+  type SignupValues,
+} from "@/schemas/auth";
+import { ApiError } from "@/services/api-client";
+import { authService } from "@/services/auth.service";
+import { DEMO_EMAIL, DEMO_PASSWORD } from "@/services/mock/seed";
+import type { Session } from "@/types";
+
+/** Already signed in? Skip the form and go where the session belongs. */
+function useRedirectIfAuthenticated() {
+  const router = useRouter();
+  const { data } = useSession();
+  useEffect(() => {
+    if (data) router.replace(homeFor(data));
+  }, [data, router]);
+}
+
+function FormError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <p role="alert" className="rounded-md border border-danger/20 bg-danger-soft px-3 py-2 text-[13px] text-danger">
+      {message}
+    </p>
+  );
+}
+
+export function LoginForm() {
+  const router = useRouter();
+  const qc = useQueryClient();
+  useRedirectIfAuthenticated();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: "", password: "", remember: true } });
+
+  const login = useMutation({
+    mutationFn: authService.login,
+    onSuccess: (session: Session) => {
+      qc.setQueryData(SESSION_KEY, session);
+      router.replace(homeFor(session));
+    },
+  });
+
+  return (
+    <form onSubmit={handleSubmit((v) => login.mutate(v))} className="space-y-4" noValidate>
+      <FormError message={login.error instanceof ApiError ? login.error.message : login.error ? "Something went wrong." : undefined} />
+      <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Input type="email" autoComplete="email" {...fieldA11y("email", errors.email?.message)} {...register("email")} />
+      </Field>
+      <Field label="Password" htmlFor="password" error={errors.password?.message}>
+        <Input type="password" autoComplete="current-password" {...fieldA11y("password", errors.password?.message)} {...register("password")} />
+      </Field>
+      <div className="flex items-center justify-between">
+        <Controller
+          control={control}
+          name="remember"
+          render={({ field }) => (
+            <label className="flex items-center gap-2 text-[13px]">
+              <Checkbox checked={field.value} onCheckedChange={(c) => field.onChange(c === true)} />
+              Remember me
+            </label>
+          )}
+        />
+        <Link href="/forgot-password" className="text-[13px] text-accent hover:underline">
+          Forgot password?
+        </Link>
+      </div>
+      <Button type="submit" className="w-full" size="lg" loading={login.isPending}>
+        Sign In
+      </Button>
+      {useMockApi && (
+        <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+          Demo mode (no API configured). Try <span className="font-mono">{DEMO_EMAIL}</span> / <span className="font-mono">{DEMO_PASSWORD}</span>, or create a new account.
+        </p>
+      )}
+    </form>
+  );
+}
+
+export function SignupForm() {
+  const router = useRouter();
+  const qc = useQueryClient();
+  useRedirectIfAuthenticated();
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<SignupValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { fullName: "", email: "", password: "", confirmPassword: "" },
+  });
+
+  const signup = useMutation({
+    mutationFn: ({ confirmPassword: _c, ...rest }: SignupValues) => {
+      void _c;
+      return authService.register(rest);
+    },
+    onSuccess: (session) => {
+      qc.setQueryData(SESSION_KEY, session);
+      router.replace("/onboarding/church");
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.fields?.email) setError("email", { message: err.message });
+    },
+  });
+
+  return (
+    <form onSubmit={handleSubmit((v) => signup.mutate(v))} className="space-y-4" noValidate>
+      <FormError message={signup.error instanceof ApiError && !signup.error.fields ? signup.error.message : undefined} />
+      <Field label="Full name" htmlFor="fullName" error={errors.fullName?.message}>
+        <Input autoComplete="name" {...fieldA11y("fullName", errors.fullName?.message)} {...register("fullName")} />
+      </Field>
+      <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Input type="email" autoComplete="email" {...fieldA11y("email", errors.email?.message)} {...register("email")} />
+      </Field>
+      <Field label="Password" htmlFor="password" error={errors.password?.message} hint="At least 8 characters, with a letter and a number.">
+        <Input type="password" autoComplete="new-password" {...fieldA11y("password", errors.password?.message, "hint")} {...register("password")} />
+      </Field>
+      <Field label="Confirm password" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
+        <Input type="password" autoComplete="new-password" {...fieldA11y("confirmPassword", errors.confirmPassword?.message)} {...register("confirmPassword")} />
+      </Field>
+      <Button type="submit" className="w-full" size="lg" loading={signup.isPending}>
+        Create Account
+      </Button>
+      <p className="text-center text-xs text-muted-foreground">
+        By creating an account you agree to the Terms of Service and Privacy Policy.
+      </p>
+    </form>
+  );
+}
+
+export function ForgotPasswordForm() {
+  const [sent, setSent] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ForgotValues>({ resolver: zodResolver(forgotSchema), defaultValues: { email: "" } });
+  const forgot = useMutation({ mutationFn: authService.forgotPassword });
+
+  if (sent) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-5 text-sm" role="status">
+        <CheckCircle2 className="mb-2 size-5 text-success" aria-hidden />
+        <p className="font-medium">Check your inbox</p>
+        <p className="mt-1 text-muted-foreground">
+          If an account exists for <span className="text-foreground">{sent}</span>, we&apos;ve sent a link to reset your password.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit((v) => forgot.mutate(v, { onSuccess: () => setSent(v.email) }))}
+      className="space-y-4"
+      noValidate
+    >
+      <FormError message={forgot.error instanceof ApiError ? forgot.error.message : undefined} />
+      <Field label="Email" htmlFor="email" error={errors.email?.message}>
+        <Input type="email" autoComplete="email" {...fieldA11y("email", errors.email?.message)} {...register("email")} />
+      </Field>
+      <Button type="submit" className="w-full" size="lg" loading={forgot.isPending}>
+        Send reset link
+      </Button>
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token?: string }) {
+  const router = useRouter();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ResetValues>({ resolver: zodResolver(resetSchema), defaultValues: { password: "", confirmPassword: "" } });
+  const reset = useMutation({
+    mutationFn: ({ confirmPassword: _c, ...rest }: ResetValues) => {
+      void _c;
+      return authService.resetPassword({ ...rest, token: token ?? "" });
+    },
+    onSuccess: () => router.replace("/login"),
+  });
+
+  if (!token) {
+    return (
+      <div role="alert" className="rounded-lg border border-border bg-card p-5 text-sm">
+        <p className="font-medium">This reset link is invalid or has expired.</p>
+        <Link href="/forgot-password" className="mt-2 inline-block text-accent hover:underline">
+          Request a new link
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit((v) => reset.mutate(v))} className="space-y-4" noValidate>
+      <FormError message={reset.error instanceof ApiError ? reset.error.message : undefined} />
+      <Field label="New password" htmlFor="password" error={errors.password?.message}>
+        <Input type="password" autoComplete="new-password" {...fieldA11y("password", errors.password?.message)} {...register("password")} />
+      </Field>
+      <Field label="Confirm new password" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
+        <Input type="password" autoComplete="new-password" {...fieldA11y("confirmPassword", errors.confirmPassword?.message)} {...register("confirmPassword")} />
+      </Field>
+      <Button type="submit" className="w-full" size="lg" loading={reset.isPending}>
+        Reset password
+      </Button>
+    </form>
+  );
+}

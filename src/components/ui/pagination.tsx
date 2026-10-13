@@ -1,0 +1,37 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "./button";
+
+export function Pagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (total === 0) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  return (
+    <nav aria-label="Pagination" className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+      <p className="text-xs text-muted-foreground">
+        {from}–{to} of {total}
+      </p>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">
+          Page {page} of {pages}
+        </span>
+        <Button variant="outline" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1} aria-label="Previous page">
+          <ChevronLeft />
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => onPageChange(page + 1)} disabled={page >= pages} aria-label="Next page">
+          <ChevronRight />
+        </Button>
+      </div>
+    </nav>
+  );
+}
