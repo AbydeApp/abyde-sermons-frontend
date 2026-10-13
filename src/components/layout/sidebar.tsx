@@ -3,6 +3,9 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -79,41 +82,57 @@ export function SidebarNav({
 
 export function UserMenu({ session, collapsed }: { session: Session; collapsed?: boolean }) {
   const logout = useLogout();
+  const [logoutOpen, setLogoutOpen] = useState(false);
   return (
-    <div className="border-t border-border p-2">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-md p-2 text-left hover:bg-muted",
-              collapsed && "justify-center",
-            )}
-            aria-label="Account menu"
-          >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background">
-              {initials(session.user.fullName)}
-            </span>
-            {!collapsed && (
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-medium">{session.user.fullName}</span>
-                <span className="block truncate text-xs text-muted-foreground">{session.church?.name}</span>
+    <>
+      <div className="border-t border-border p-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-md p-2 text-left hover:bg-muted",
+                collapsed && "justify-center",
+              )}
+              aria-label="Account menu"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background">
+                {initials(session.user.fullName)}
               </span>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="top" className="w-56">
-          <DropdownMenuItem asChild>
-            <Link href="/settings">
-              <Settings /> Settings
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => logout.mutate()}>
-            <LogOut /> Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+              {!collapsed && (
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-medium">{session.user.fullName}</span>
+                  <span className="block truncate text-xs text-muted-foreground">{session.church?.name}</span>
+                </span>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="top" className="w-56">
+            <DropdownMenuItem asChild>
+              <Link href="/settings">
+                <Settings /> Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setLogoutOpen(true)}>
+              <LogOut /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <ConfirmDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        title="Log out?"
+        description="Are you sure you want to log out of Abyde Sermon?"
+        confirmLabel="Log out"
+        loading={logout.isPending}
+        onConfirm={() =>
+          logout.mutate(undefined, {
+            onError: () => toast.error("Couldn't log out. Please try again."),
+          })
+        }
+      />
+    </>
   );
 }
 

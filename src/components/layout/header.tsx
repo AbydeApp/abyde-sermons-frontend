@@ -1,27 +1,33 @@
 "use client";
 
-import { Menu } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { Menu, ChevronDown, Settings, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { SearchInput } from "@/components/shared/search-input";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/dialog";
-import { NAV_SECTIONS } from "@/constants/nav";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { useLogout } from "@/hooks/use-session";
 import type { Session } from "@/types";
 import { Logo } from "./logo";
 import { SidebarNav, UserMenu } from "./sidebar";
 
-function titleFor(pathname: string) {
-  const all = NAV_SECTIONS.flatMap((s) => s.items);
-  const match = [...all].sort((a, b) => b.href.length - a.href.length).find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`));
-  return match?.label ?? "Abyde Sermon";
-}
-
 export function Header({ session }: { session: Session }) {
-  const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const logout = useLogout();
+
+  const handleSettings = () => {
+    router.push("/settings");
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur sm:px-6">
@@ -40,26 +46,45 @@ export function Header({ session }: { session: Session }) {
         </SheetContent>
       </Sheet>
 
-      <p className="text-sm font-medium">{titleFor(pathname)}</p>
-
-      <div className="ml-auto flex items-center gap-2">
-        <form
-          role="search"
-          className="hidden sm:block"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (q.trim()) router.push(`/library?q=${encodeURIComponent(q.trim())}`);
-          }}
-        >
-          <SearchInput
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search sermons…"
-            aria-label="Search sermons"
-            className="w-56 lg:w-72"
-          />
-        </form>
+      <div className="ml-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="gap-2 px-2 py-1.5 h-auto hidden sm:flex items-center">
+              <div className="flex flex-col items-end text-sm">
+                <span className="font-medium text-foreground">{session.user.fullName}</span>
+                {session.church && (
+                  <span className="text-muted-foreground">{session.church.name}</span>
+                )}
+              </div>
+              <ChevronDown className="size-4 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleSettings}>
+              <Settings className="size-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setLogoutOpen(true)} className="text-danger focus:text-danger">
+              <LogOut className="size-4" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      <ConfirmDialog
+        open={logoutOpen}
+        onOpenChange={setLogoutOpen}
+        title="Log out?"
+        description="Are you sure you want to log out of Abyde Sermon?"
+        confirmLabel="Log out"
+        loading={logout.isPending}
+        onConfirm={() =>
+          logout.mutate(undefined, {
+            onError: () => toast.error("Couldn't log out. Please try again."),
+          })
+        }
+      />
     </header>
   );
 }
