@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api-client";
 import { handleMock } from "./handler";
+import { DEMO_OTP } from "./seed";
 
 const get = <T,>(path: string) => handleMock("GET", path) as Promise<T>;
 const post = <T,>(path: string, body?: unknown) => handleMock("POST", path, body) as Promise<T>;
@@ -22,58 +23,63 @@ describe("mock backend follows the backend contract", () => {
     await expect(get("/dashboard")).rejects.toMatchObject({ status: 401 });
   });
 
-  it("registers required phone and optional ministry details", async () => {
-    const reg = await post<{
-      onboardingCompleted: boolean;
-      user: { phoneNumber: string };
-      church: { name: string; denomination: string; address: string; primaryColor: string; secondaryColor: string; accentColor: string };
-    }>("/auth/register", {
-      fullName: "Test User",
-      email: `t${Date.now()}@x.org`,
-      password: "abcd1234",
-      phoneNumber: "+234 801 234 5678",
-      churchName: "Test Church",
-      denomination: "Baptist",
-      churchAddress: "1 Test Road",
-      primaryColor: "#123456",
-      secondaryColor: "#234567",
-      accentColor: "#345678",
-    });
-    expect(reg.onboardingCompleted).toBe(true);
-    expect(reg.user.phoneNumber).toBe("+234 801 234 5678");
-    expect(reg.church).toMatchObject({
-      name: "Test Church",
-      denomination: "Baptist",
-      address: "1 Test Road",
-      primaryColor: "#123456",
-      secondaryColor: "#234567",
-      accentColor: "#345678",
-    });
-    expect(await get<{ primaryColor: string; secondaryColor: string; accentColor: string }>("/brand-studio")).toMatchObject({
-      primaryColor: "#123456",
-      secondaryColor: "#234567",
-      accentColor: "#345678",
-    });
-    await expect(post("/church", { name: "Second", ownerRole: "Pastor" })).rejects.toMatchObject({ status: 409 });
-  });
+  describe("email verification", () => {
+    const signup = async (extra: Record<string, unknown> = {}) => {
+      const email = `t${Date.now()}${Math.random().toString(36).slice(2, 6)}@x.org`;
+      const res = await post<{ email: string }>("/auth/register", { fullName: "Test User", email, password: "abcd1234", ...extra });
+      return { email, res };
+    };
 
-  it("registers without optional church details", async () => {
-    const reg = await post<{ onboardingCompleted: boolean; church: { name: string; denomination: string | null } }>("/auth/register", {
-      fullName: "Test User",
-      email: `t${Date.now()}@x.org`,
-      password: "abcd1234",
-      phoneNumber: "08012345678",
+    it("registers with just name, email and password, and does not sign in yet", async () => {
+      const { email, res } = await signup();
+      expect(res).toEqual({ email });
+      expect((await get<{ authenticated: boolean }>("/auth/me")).authenticated).toBe(false);
     });
-    expect(reg.onboardingCompleted).toBe(true);
-    expect(reg.church).toMatchObject({ name: "Your Ministry", denomination: null });
-  });
 
-  it("rejects registration without a valid phone number", async () => {
-    await expect(post("/auth/register", {
-      fullName: "Test User",
-      email: `t${Date.now()}@x.org`,
-      password: "abcd1234",
-    })).rejects.toMatchObject({ status: 422, fields: { phoneNumber: "Enter a valid phone number" } });
+    it("blocks login until the email is verified, then signs in with the right code", async () => {
+      const { email } = await signup({ churchName: "Test Church" });
+      await expect(post("/auth/login", { email, password: "abcd1234" })).rejects.toMatchObject({ status: 403, code: "EMAIL_NOT_VERIFIED" });
+      await expect(post("/auth/verify-email", { email, code: "000000" })).rejects.toMatchObject({ status: 422, code: "OTP_INVALID" });
+      const me = await post<{ authenticated: boolean; church: { name: string } }>("/auth/verify-email", { email, code: DEMO_OTP });
+      expect(me.authenticated).toBe(true);
+      expect(me.church.name).toBe("Test Church");
+      await expect(post("/church", { name: "Second", ownerRole: "Pastor" })).rejects.toMatchObject({ status: 409 });
+    });
+
+    it("defaults the church name when none is given", async () => {
+      const { email } = await signup();
+      const me = await post<{ church: { name: string } }>("/auth/verify-email", { email, code: DEMO_OTP });
+      expect(me.church.name).toBe("Your Ministry");
+    });
+
+    it("locks the code after too many wrong attempts until a new one is sent", async () => {
+      const { email } = await signup();
+      for (let i = 0; i < 5; i++) await expect(post("/auth/verify-email", { email, code: "111111" })).rejects.toMatchObject({ code: "OTP_INVALID" });
+      await expect(post("/auth/verify-email", { email, code: DEMO_OTP })).rejects.toMatchObject({ status: 429, code: "OTP_LOCKED" });
+      await post("/auth/resend-verification", { email });
+      expect((await post<{ authenticated: boolean }>("/auth/verify-email", { email, code: DEMO_OTP })).authenticated).toBe(true);
+    });
+
+    it("rejects an expired code", async () => {
+      // Fake only the clock; the mock still needs real timers for its simulated latency.
+      vi.useFakeTimers({ toFake: ["Date"] });
+      try {
+        const { email } = await signup();
+        vi.setSystemTime(Date.now() + 11 * 60_000);
+        await expect(post("/auth/verify-email", { email, code: DEMO_OTP })).rejects.toMatchObject({ code: "OTP_EXPIRED" });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("answers resend the same for unknown emails", async () => {
+      await expect(post("/auth/resend-verification", { email: "nobody@x.org" })).resolves.toBeUndefined();
+    });
+
+    it("rejects a duplicate email", async () => {
+      const { email } = await signup();
+      await expect(post("/auth/register", { fullName: "Again", email, password: "abcd1234" })).rejects.toMatchObject({ status: 409, code: "EMAIL_TAKEN" });
+    });
   });
 
   it("rejects wrong password with INVALID_CREDENTIALS", async () => {

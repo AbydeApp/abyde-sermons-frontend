@@ -96,7 +96,22 @@ export function useDeleteContentBatch() {
   });
 }
 
-export const useCalendarRange = (from: string, to: string) =>
+/** Approves independently so a failed item doesn't block the rest. */
+export function useApproveContentBatch() {
+  const r = useRefreshers();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(ids.map((id) => contentService.approve(id)));
+      return {
+        approved: ids.filter((_, index) => results[index].status === "fulfilled"),
+        failed: ids.filter((_, index) => results[index].status === "rejected"),
+      };
+    },
+    onSuccess: r.all,
+  });
+}
+
+export const useCalendarRange =(from: string, to: string) =>
   useQuery({
     queryKey: ["calendar", "range", from, to],
     queryFn: ({ signal }) => calendarService.range(from, to, signal),

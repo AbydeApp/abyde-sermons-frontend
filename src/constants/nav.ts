@@ -4,7 +4,6 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
-  Library,
   Palette,
   Plus,
   Settings,
@@ -33,7 +32,6 @@ export const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { label: "Content", href: "/content", icon: FileText },
       // { label: "Calendar", href: "/calendar", icon: CalendarDays },
       { label: "Brand Studio", href: "/brand-studio", icon: Palette },
-      { label: "Library", href: "/library", icon: Library },
     ],
   },
   {

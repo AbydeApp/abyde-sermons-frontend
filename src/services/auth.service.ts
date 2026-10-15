@@ -17,10 +17,13 @@ function required(me: MeResponse): Session {
 export const authService = {
   me: async (signal?: AbortSignal) => toSession(await api.get<MeResponse>("/auth/me", { signal })),
   login: async (v: LoginValues) => required(await api.post<MeResponse>("/auth/login", v)),
-  register: async (v: Omit<SignupValues, "confirmPassword">) =>
-    required(await api.post<MeResponse>("/auth/register", v)),
+  /** Creates the account and emails a one-time code. No session exists until the code is verified. */
+  register: (v: SignupValues) => api.post<{ email: string }>("/auth/register", v),
+  /** Confirms the emailed code and signs the user in. */
+  verifyEmail: async (v: { email: string; code: string }) => required(await api.post<MeResponse>("/auth/verify-email", v)),
+  resendVerification: (email: string) => api.post<void>("/auth/resend-verification", { email }),
   logout: () => api.post<void>("/auth/logout"),
-  updateAccount: async (v: { fullName: string; email: string }) =>
+  updateAccount: async (v: { fullName: string; email: string; phoneNumber?: string }) =>
     required(await api.patch<MeResponse>("/auth/me", v)),
   changePassword: (v: { current: string; next: string }) =>
     api.post<void>("/auth/change-password", { currentPassword: v.current, newPassword: v.next }),

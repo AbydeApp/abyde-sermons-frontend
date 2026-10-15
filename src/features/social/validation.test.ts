@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CAPABILITIES } from "@/services/mock/seed";
-import type { SocialCapability, SocialPlatform } from "@/types";
-import { mediaKindOf, validatePublish } from "./validation";
+import type { ContentItem, SocialCapability, SocialPlatform } from "@/types";
+import { defaultCaption, mediaKindOf, planBulkPost, validatePublish } from "./validation";
 
 const cap = (p: SocialPlatform) => CAPABILITIES.find((c) => c.platform === p) as unknown as SocialCapability;
 const base = { caption: "Hello", mediaKind: "none" as const, mediaReady: false };
@@ -36,5 +36,28 @@ describe("publish validation (capability driven)", () => {
     expect(mediaKindOf({ structured: { reel: {} as never }, visual: null })).toBe("video");
     expect(mediaKindOf({ structured: { carousel: {} as never }, visual: null })).toBe("carousel");
     expect(mediaKindOf({ structured: null, visual: null })).toBe("none");
+  });
+});
+
+describe("bulk post planning", () => {
+  const caps = new Map(CAPABILITIES.map((c) => [c.platform, c as unknown as SocialCapability]));
+  const item = (over: Partial<ContentItem>) =>
+    ({ id: "c1", type: "SOCIAL_POST", title: "T", body: "Hello", status: "DRAFT", sermonId: "s", sermonTitle: "S", currentVersion: 1, updatedAt: "", source: "AI_GENERATED", ...over }) as ContentItem;
+
+  it("only plans social posts and quotes that haven't gone out", () => {
+    const plan = planBulkPost([item({}), item({ id: "q", type: "QUOTE" }), item({ id: "d", type: "DEVOTIONAL" }), item({ id: "p", status: "PUBLISHED" })], ["facebook"], caps);
+    expect(plan.map((e) => e.item.id)).toEqual(["c1", "q"]);
+  });
+  it("skips platforms that need media the item doesn't have, without dropping the rest", () => {
+    const [entry] = planBulkPost([item({})], ["facebook", "instagram"], caps);
+    expect(entry.targets).toEqual(["facebook"]);
+    expect(entry.skipped[0].platform).toBe("instagram");
+  });
+  it("skips X when the caption is over its limit instead of truncating", () => {
+    const [entry] = planBulkPost([item({ body: "a".repeat(300) })], ["x", "facebook"], caps);
+    expect(entry.targets).toEqual(["facebook"]);
+  });
+  it("wraps quotes in curly quotes", () => {
+    expect(defaultCaption(item({ type: "QUOTE", body: "Walk by faith" }))).toBe("“Walk by faith”");
   });
 });

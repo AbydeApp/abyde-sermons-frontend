@@ -1,5 +1,5 @@
 import { PLATFORMS } from "@/constants/brand";
-import type { ContentItem, SocialCapability, SocialPlatform } from "@/types";
+import type { ContentItem, ContentType, SocialCapability, SocialPlatform } from "@/types";
 
 export type MediaKind = "none" | "image" | "carousel" | "video";
 
@@ -50,4 +50,47 @@ export function validatePublish(i: PublishInput): string[] {
     if (tags > cap.maxHashtags) problems.push(`${name} allows up to ${cap.maxHashtags} hashtags (you have ${tags}).`);
   }
   return problems;
+}
+
+/** The caption a content item publishes with unless the user edits it. */
+export function defaultCaption(c: Pick<ContentItem, "type" | "body" | "structured">): string {
+  return c.structured?.reel?.caption ?? (c.type === "QUOTE" ? `“${c.body.replace(/^“|”$/g, "")}”` : c.body);
+}
+
+/** Content types that make sense as a social post. Devotionals, email, WhatsApp etc. are not posted from here. */
+export const POSTABLE_TYPES: ContentType[] = ["SOCIAL_POST", "QUOTE"];
+
+export function isPostable(c: Pick<ContentItem, "type" | "status">): boolean {
+  return POSTABLE_TYPES.includes(c.type) && (c.status === "DRAFT" || c.status === "APPROVED");
+}
+
+export interface BulkEntry {
+  item: ContentItem;
+  /** Selected platforms this item can be posted to as written. */
+  targets: SocialPlatform[];
+  /** Selected platforms it can't, with the reasons. */
+  skipped: { platform: SocialPlatform; reasons: string[] }[];
+}
+
+/** Checks every postable item against every chosen platform; nothing is truncated or edited. */
+export function planBulkPost(items: ContentItem[], platforms: SocialPlatform[], caps: Map<SocialPlatform, SocialCapability>): BulkEntry[] {
+  return items.filter(isPostable).map((item) => {
+    const reel = item.structured?.reel;
+    const targets: SocialPlatform[] = [];
+    const skipped: BulkEntry["skipped"] = [];
+    for (const platform of platforms) {
+      const reasons = validatePublish({
+        platform,
+        capability: caps.get(platform),
+        caption: defaultCaption(item),
+        title: item.title,
+        mediaKind: mediaKindOf(item),
+        mediaReady: item.visual?.status === "READY",
+        videoSeconds: reel ? (reel.endTimeMs - reel.startTimeMs) / 1000 : undefined,
+      });
+      if (reasons.length) skipped.push({ platform, reasons });
+      else targets.push(platform);
+    }
+    return { item, targets, skipped };
+  });
 }

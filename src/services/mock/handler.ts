@@ -4,6 +4,7 @@ import { buildPoster, placeholderAsset, toDataUrl } from "./svg";
 import {
   CAPABILITIES,
   DEFAULT_INTEGRATIONS,
+  DEMO_OTP,
   TEMPLATES,
   defaultBrand,
   firstVersion,
@@ -82,6 +83,13 @@ function currentUser(db: MockDb) {
   const u = db.users.find((x) => x.id === db.sessionUserId);
   if (!u) fail(401, "UNAUTHORIZED", "Please sign in.");
   return u;
+}
+
+const OTP_TTL_MS = 10 * 60_000;
+const OTP_MAX_ATTEMPTS = 5;
+
+function issueOtp(db: MockDb, email: string) {
+  (db.verifications ??= {})[email] = { code: DEMO_OTP, expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(), attempts: 0 };
 }
 
 function meOf(db: MockDb, userId: string | null): MeResponse {
@@ -371,6 +379,10 @@ const routes: Route[] = [
     ({ db, body }) => {
       const u = db.users.find((x) => x.email.toLowerCase() === String(body.email).toLowerCase());
       if (!u || u.password !== body.password) fail(401, "INVALID_CREDENTIALS", "Incorrect email or password.");
+      if (u.emailVerified === false) {
+        issueOtp(db, u.email);
+        fail(403, "EMAIL_NOT_VERIFIED", "Verify your email to continue. We've sent you a new code.");
+      }
       db.sessionUserId = u.id;
       return meOf(db, u.id);
     },
@@ -381,31 +393,50 @@ const routes: Route[] = [
     ({ db, body }) => {
       const email = String(body.email).trim().toLowerCase();
       if (db.users.some((x) => x.email === email)) fail(409, "EMAIL_TAKEN", "An account with this email already exists.", { email: ["Already in use"] });
-      const phoneNumber = typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : "";
-      const phoneDigits = phoneNumber.replace(/\D/g, "");
-      if (!/^\+?[0-9\s().-]+$/.test(phoneNumber) || phoneDigits.length < 7 || phoneDigits.length > 15) {
-        fail(422, "VALIDATION_ERROR", "Enter a valid phone number.", { phoneNumber: ["Enter a valid phone number"] });
-      }
       const id = nextId(db, "user");
       const fullName = String(body.fullName);
       const churchName = typeof body.churchName === "string" && body.churchName.trim() ? body.churchName.trim() : "Your Ministry";
-      db.users.push({ id, fullName, email, password: String(body.password), phoneNumber, onboardingCompleted: true });
+      db.users.push({ id, fullName, email, password: String(body.password), onboardingCompleted: true, emailVerified: false });
       db.churches[id] = {
         id: nextId(db, "church"),
         name: churchName,
         slug: churchName.toLowerCase().replace(/\W+/g, "-"),
         ownerRole: "",
-        denomination: typeof body.denomination === "string" && body.denomination.trim() ? body.denomination.trim() : null,
-        address: typeof body.churchAddress === "string" && body.churchAddress.trim() ? body.churchAddress.trim() : null,
-        primaryColor: typeof body.primaryColor === "string" && body.primaryColor ? body.primaryColor : null,
-        secondaryColor: typeof body.secondaryColor === "string" && body.secondaryColor ? body.secondaryColor : null,
-        accentColor: typeof body.accentColor === "string" && body.accentColor ? body.accentColor : null,
       };
       db.sermons[id] = [];
       db.content[id] = [];
       db.integrations[id] = DEFAULT_INTEGRATIONS.map((i) => ({ ...i }));
-      db.sessionUserId = id;
-      return meOf(db, id);
+      issueOtp(db, email);
+      return { email }; // no session until the code is confirmed
+    },
+  ],
+  [
+    "POST",
+    /^\/auth\/verify-email$/,
+    ({ db, body }) => {
+      const email = String(body.email).trim().toLowerCase();
+      const u = db.users.find((x) => x.email === email);
+      const v = db.verifications?.[email];
+      if (!u || !v) fail(422, "OTP_INVALID", "That code isn't valid. Request a new one.", { code: ["Invalid"] });
+      if (Date.parse(v.expiresAt) < Date.now()) fail(422, "OTP_EXPIRED", "That code has expired. Request a new one.", { code: ["Expired"] });
+      if (v.attempts >= OTP_MAX_ATTEMPTS) fail(429, "OTP_LOCKED", "Too many attempts. Request a new code.", { code: ["Locked"] });
+      if (v.code !== String(body.code).trim()) {
+        v.attempts += 1;
+        fail(422, "OTP_INVALID", "That code isn't right. Check your email and try again.", { code: ["Incorrect"] });
+      }
+      delete db.verifications?.[email];
+      u.emailVerified = true;
+      db.sessionUserId = u.id;
+      return meOf(db, u.id);
+    },
+  ],
+  [
+    "POST",
+    /^\/auth\/resend-verification$/,
+    ({ db, body }) => {
+      const email = String(body.email).trim().toLowerCase();
+      // Same answer whether or not the account exists, so this can't be used to probe emails.
+      if (db.users.some((x) => x.email === email && x.emailVerified === false)) issueOtp(db, email);
     },
   ],
   ["POST", /^\/auth\/logout$/, ({ db }) => void (db.sessionUserId = null)],
@@ -416,6 +447,7 @@ const routes: Route[] = [
       const u = currentUser(db);
       u.fullName = String(body.fullName);
       u.email = String(body.email).toLowerCase();
+      if (typeof body.phoneNumber === "string") u.phoneNumber = body.phoneNumber.trim();
       return meOf(db, u.id);
     },
   ],
@@ -1018,7 +1050,7 @@ const routes: Route[] = [
     /^\/billing\/subscription$/,
     ({ db }) => {
       currentUser(db);
-      return { planId: "growth", planName: "Growth", priceLabel: "₦25,000 / month", status: "ACTIVE", currentPeriodEnd: addDays(new Date(), 12).toISOString() };
+      return { planId: "standard", planName: "Standard", priceLabel: "₦7,000 / month", status: "TRIALING", currentPeriodEnd: addDays(new Date(), 23).toISOString() };
     },
   ],
   [

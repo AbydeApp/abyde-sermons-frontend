@@ -1,7 +1,8 @@
 "use client";
 
-import { BookOpen, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, MoreHorizontal, Pencil, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -19,7 +20,9 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ApiError } from "@/services/api-client";
 import type { Sermon, SermonStatusGroup } from "@/types";
 import { formatDate } from "@/utils/format";
+import { useLibrary } from "@/features/library/queries";
 import { useDeleteSermon, useSermons } from "./queries";
+import { SermonFilters, filterParams, hasFilters, type Filters } from "./sermon-filters";
 
 const TABS: { value: "ALL" | SermonStatusGroup; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -30,10 +33,19 @@ const TABS: { value: "ALL" | SermonStatusGroup; label: string }[] = [
 
 export function SermonsPage() {
   const [tab, setTab] = useState<"ALL" | SermonStatusGroup>("ALL");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useSearchParams().get("q") ?? "");
+  const [filters, setFilters] = useState<Filters>({});
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const q = useDebouncedValue(search);
-  const query = useSermons({ group: tab === "ALL" ? undefined : tab, q, page, pageSize: 8 });
+  // Searching or filtering uses the library endpoints (meaning-based, finished sermons only);
+  // otherwise the plain list with status tabs.
+  const searching = q.trim() !== "" || hasFilters(filters);
+  const list = useSermons({ group: tab === "ALL" ? undefined : tab, page, pageSize: 8 }, !searching);
+  const found = useLibrary({ q, ...filterParams(filters), page, pageSize: 8 }, searching);
+  const query = searching ? found : list;
+  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const changeFilters = (next: Filters) => { setFilters(next); setPage(1); };
   const [toDelete, setToDelete] = useState<Sermon | null>(null);
   const del = useDeleteSermon();
 
@@ -53,28 +65,44 @@ export function SermonsPage() {
           <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setPage(1); }}>
             <TabsList className="border-b-0">
               {TABS.map((t) => (
-                <TabsTrigger key={t.value} value={t.value}>
+                <TabsTrigger key={t.value} value={t.value} disabled={searching}>
                   {t.label}
                 </TabsTrigger>
               ))}
             </TabsList>
           </Tabs>
-          <SearchInput
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search sermons…"
-            aria-label="Search sermons"
-            className="w-full sm:w-64"
-          />
+          <div className="flex items-center gap-2">
+            <SearchInput
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Try “sermons about fear”"
+              aria-label="Search sermons"
+              className="w-full sm:w-64"
+            />
+            <Button variant="outline" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)}>
+              <SlidersHorizontal /> Filters{activeFilters > 0 && ` (${activeFilters})`}
+            </Button>
+          </div>
         </div>
+        {(showFilters || activeFilters > 0) && (
+          <div className="space-y-2 px-4 pt-3">
+            <SermonFilters value={filters} onChange={changeFilters} />
+            {activeFilters > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => changeFilters({})}>
+                <X /> Clear filters
+              </Button>
+            )}
+          </div>
+        )}
+        {searching && <p className="px-4 pt-3 text-xs text-muted-foreground">Searching your finished sermons. Clear the search and filters to see every status.</p>}
         <div className="mt-3 border-t border-border">
           {query.isPending ? (
             <RowsSkeleton rows={6} />
           ) : query.isError ? (
             <ErrorState error={query.error} onRetry={() => query.refetch()} />
           ) : query.data.items.length === 0 ? (
-            q || tab !== "ALL" ? (
-              <EmptyState icon={BookOpen} title="No sermons match." description="Try a different search or filter." />
+            searching || tab !== "ALL" ? (
+              <EmptyState icon={BookOpen} title="No sermons found." description="Try different words or clear your filters." />
             ) : (
               <EmptyState
                 icon={BookOpen}

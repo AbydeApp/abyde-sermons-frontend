@@ -38,9 +38,9 @@ function AccountSection() {
     handleSubmit,
     reset,
     formState: { errors, isDirty },
-  } = useForm<AccountValues>({ resolver: zodResolver(accountSchema), defaultValues: { fullName: "", email: "" } });
+  } = useForm<AccountValues>({ resolver: zodResolver(accountSchema), defaultValues: { fullName: "", email: "", phoneNumber: "" } });
   useEffect(() => {
-    if (session) reset({ fullName: session.user.fullName, email: session.user.email });
+    if (session) reset({ fullName: session.user.fullName, email: session.user.email, phoneNumber: session.user.phoneNumber ?? "" });
   }, [session, reset]);
   const save = useMutation({
     mutationFn: authService.updateAccount,
@@ -57,6 +57,9 @@ function AccountSection() {
       </Field>
       <Field label="Email" htmlFor="acc-email" error={errors.email?.message}>
         <Input type="email" {...fieldA11y("acc-email", errors.email?.message)} {...register("email")} />
+      </Field>
+      <Field label="Phone number" htmlFor="acc-phone" optional error={errors.phoneNumber?.message} hint="Include your country code if applicable.">
+        <Input type="tel" autoComplete="tel" {...fieldA11y("acc-phone", errors.phoneNumber?.message, "hint")} {...register("phoneNumber")} />
       </Field>
       <SaveBar pending={save.isPending} dirty={isDirty} />
     </form>
@@ -87,10 +90,10 @@ function ChurchSection() {
   } = useForm<ChurchValues>({ resolver: zodResolver(churchSchema), defaultValues: { name: "", ownerRole: "" } });
   useEffect(() => {
     const c = session?.church;
-    if (c) reset({ name: c.name, ownerRole: c.ownerRole, denomination: c.denomination ?? "", website: c.website ?? "" });
+    if (c) reset({ name: c.name, ownerRole: c.ownerRole, denomination: c.denomination ?? "", address: c.address ?? "", website: c.website ?? "" });
   }, [session?.church, reset]);
   return (
-    <form onSubmit={handleSubmit((v) => save.mutate({ ...v, denomination: v.denomination ?? "", website: v.website ?? "" }))} className="space-y-4" noValidate>
+    <form onSubmit={handleSubmit((v) => save.mutate({ ...v, denomination: v.denomination ?? "", address: v.address ?? "", website: v.website ?? "" }))} className="space-y-4" noValidate>
       <Field label="Church / Ministry name" htmlFor="ch-name" error={errors.name?.message}>
         <Input {...fieldA11y("ch-name", errors.name?.message)} {...register("name")} />
       </Field>
@@ -102,6 +105,9 @@ function ChurchSection() {
           <Input {...fieldA11y("ch-den")} {...register("denomination")} />
         </Field>
       </div>
+      <Field label="Church / Ministry address" htmlFor="ch-addr" optional>
+        <Input autoComplete="street-address" {...fieldA11y("ch-addr")} {...register("address")} />
+      </Field>
       <Field label="Website" htmlFor="ch-web" error={errors.website?.message} optional>
         <Input {...fieldA11y("ch-web", errors.website?.message)} {...register("website")} />
       </Field>

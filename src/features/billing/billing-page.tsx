@@ -22,6 +22,7 @@ export function BillingPage() {
 
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const b = q.data;
+  const trialing = b?.status === "TRIALING";
   const pct = b ? Math.min(100, Math.round((b.sermonsUsed / b.sermonsLimit) * 100)) : 0;
 
   return (
@@ -33,10 +34,14 @@ export function BillingPage() {
             <>
               <div className="flex items-baseline justify-between">
                 <p className="font-serif text-3xl">{b.plan.name}</p>
-                <Badge tone="accent">{b.plan.priceLabel}</Badge>
+                <Badge tone="accent">{trialing ? "Free trial" : b.plan.priceLabel}</Badge>
               </div>
-              <p className="mt-2 text-[13px] text-muted-foreground">Renews on {formatDate(b.renewalDate, "MMMM d, yyyy")}</p>
-              <Button className="mt-5" variant="outline" loading={portal.isPending} onClick={() => portal.mutate()}>Upgrade or change plan</Button>
+              <p className="mt-2 text-[13px] text-muted-foreground">
+                {trialing
+                  ? `Free until ${formatDate(b.renewalDate, "MMMM d, yyyy")}, then ${b.plan.priceLabel}.`
+                  : `Renews on ${formatDate(b.renewalDate, "MMMM d, yyyy")}`}
+              </p>
+              <Button className="mt-5" variant="outline" loading={portal.isPending} onClick={() => portal.mutate()}>Manage billing</Button>
             </>
           )}
         </ContentCard>

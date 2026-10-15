@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { optionalPhone } from "./auth";
 
 export const accountSchema = z.object({
   fullName: z.string().trim().min(2, "Enter your name"),
   email: z.string().trim().email("Enter a valid email address"),
+  phoneNumber: optionalPhone,
 });
 export type AccountValues = z.infer<typeof accountSchema>;
 

@@ -32,8 +32,8 @@ export function buildPoster(opts: {
 }): string {
   const { width: w, height: h, variant, primary, secondary, accent, headingFont, bodyFont } = opts;
   const light = variant === "minimal";
-  const bg = light ? "#FAF9F6" : variant === "gradient" ? "url(#g)" : variant === "split" ? secondary : primary;
-  const fg = light ? "#1B1A17" : "#FFFFFF";
+  const bg = light ? "#FFFFFF" : variant === "gradient" ? "url(#g)" : variant === "split" ? secondary : primary;
+  const fg = light ? "#1C1626" : "#FFFFFF";
   const size = Math.round(w * 0.075);
   const lines = wrap(opts.headline, Math.max(12, Math.round(24 * (1080 / w) * (w / 1080))), 6);
   const text = lines
@@ -54,12 +54,12 @@ export function buildPoster(opts: {
 export const toDataUrl = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
 const KIND_COLORS: Record<BrandAssetKind, [string, string]> = {
-  LOGO: ["#B5502F", "#F8EBE4"],
+  LOGO: ["#7A21B0", "#F3E9FA"],
   PORTRAIT: ["#3B4A5A", "#C9D3DD"],
   VENUE: ["#5A4A3B", "#E6D8C8"],
   TEXTURE: ["#2F3A2F", "#A7B8A0"],
   STOCK: ["#2F4A5A", "#A0C0D0"],
-  WATERMARK: ["#1B1A17", "#D6D2C8"],
+  WATERMARK: ["#1C1626", "#D8D3E3"],
 };
 
 /** Placeholder artwork for uploaded brand assets in mock mode. */

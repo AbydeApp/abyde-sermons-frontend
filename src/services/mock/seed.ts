@@ -63,7 +63,9 @@ export interface MockRender {
 }
 
 export interface MockDb {
-  users: { id: string; fullName: string; email: string; password: string; phoneNumber?: string; onboardingCompleted: boolean }[];
+  users: { id: string; fullName: string; email: string; password: string; phoneNumber?: string; onboardingCompleted: boolean; /** false until the emailed code is confirmed; absent means verified. */ emailVerified?: boolean }[];
+  /** Pending email-verification codes, keyed by lowercase email. */
+  verifications?: Record<string, { code: string; expiresAt: string; attempts: number }>;
   sessionUserId: string | null;
   churches: Record<string, Church>;
   sermons: Record<string, MockSermon[]>;
@@ -106,9 +108,9 @@ export function defaultBrand(church: Church | undefined, churchId: string): Bran
     alternateLogoUrl: null,
     logoAssetId: null,
     alternateLogoAssetId: null,
-    primaryColor: church?.primaryColor || "#B5502F",
-    secondaryColor: church?.secondaryColor || "#1B1A17",
-    accentColor: church?.accentColor || "#E8A87C",
+    primaryColor: church?.primaryColor || "#7A21B0",
+    secondaryColor: church?.secondaryColor || "#1C1626",
+    accentColor: church?.accentColor || "#C9A7E8",
     headingFont: "Fraunces",
     bodyFont: "Inter",
     socialHandle: null,
@@ -299,6 +301,8 @@ export const DEFAULT_INTEGRATIONS: Integration[] = [
 
 export const DEMO_EMAIL = "demo@abydesermon.app";
 export const DEMO_PASSWORD = "demo1234";
+/** Every email code in demo mode, so signup can be completed without a mail server. */
+export const DEMO_OTP = "123456";
 
 export function seedDb(): MockDb {
   const now = new Date();
@@ -415,7 +419,7 @@ export function seedDb(): MockDb {
         website: null,
         logoUrl: null,
         preferredBibleTranslation: "NIV",
-        primaryColor: "#B5502F",
+        primaryColor: "#7A21B0",
         secondaryColor: null,
         devotionalTone: "Warm and pastoral",
         socialTone: "Encouraging and concise",

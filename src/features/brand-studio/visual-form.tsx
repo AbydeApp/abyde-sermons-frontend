@@ -16,9 +16,9 @@ const MAX_IMAGE = 8 * 1024 ** 2;
 function ColorField({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (v: string) => void }) {
   const valid = /^#[0-9a-f]{6}$/i.test(value);
   return (
-    <Field label={label} htmlFor={id} error={valid ? undefined : "Use a hex color like #B5502F"}>
+    <Field label={label} htmlFor={id} error={valid ? undefined : "Use a hex color like #7A21B0"}>
       <div className="flex gap-2">
-        <input type="color" aria-label={`${label} picker`} value={valid ? value : "#b5502f"} onChange={(e) => onChange(e.target.value.toUpperCase())} className="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-border-strong bg-card p-1" />
+        <input type="color" aria-label={`${label} picker`} value={valid ? value : "#7a21b0"} onChange={(e) => onChange(e.target.value.toUpperCase())} className="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-border-strong bg-card p-1" />
         <Input {...fieldA11y(id, valid ? undefined : "invalid")} value={value} onChange={(e) => onChange(e.target.value)} className="font-mono uppercase" />
       </div>
     </Field>

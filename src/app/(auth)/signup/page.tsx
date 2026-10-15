@@ -9,8 +9,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Start with your first sermon"
-      description="Create your account and add your ministry details. Ministry information is optional."
-      wide
+      description="Free for your first month, then ₦7,000/month. Set up takes under a minute."
       footer={
         <>
           Already have an account?{" "}

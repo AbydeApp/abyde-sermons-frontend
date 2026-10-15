@@ -1,19 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Check, Loader2, Pencil } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Check, CheckCheck, Loader2, Pencil, Send } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { StatusBadge } from "@/components/shared/badges";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { CONTENT_TYPE_META, GENERATION_OPTIONS } from "@/constants/content";
-import { useContentList } from "@/features/content/queries";
+import { useApproveContentBatch, useContentList, useContentMutations } from "@/features/content/queries";
 import { useState } from "react";
+import type { ContentItem } from "@/types";
+import { isPostable } from "@/features/social/validation";
+import { PostAllDialog } from "./post-all-dialog";
 import { useGenerationJob, useSermon, useStartGeneration } from "./queries";
 
+// The API lists by last update, which would shuffle cards as they are approved.
+const byTitle = (a: ContentItem, b: ContentItem) => a.title.localeCompare(b.title, undefined, { numeric: true });
+
+function ApproveButton({ item }: { item: ContentItem }) {
+  const { approve } = useContentMutations(item.id);
+  if (item.status !== "DRAFT") return null;
+  return (
+    <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate(undefined, { onError: () => toast.error("Couldn’t approve this draft. Please try again.") })}>
+      <Check />Approve
+    </Button>
+  );
+}
+
 export function WeekPreview({ sermonId }: { sermonId: string }) {
+  const router = useRouter();
   const params = useSearchParams();
   const generationId = params.get("generationId");
   const [retryId, setRetryId] = useState<string | null>(null);
@@ -25,12 +43,31 @@ export function WeekPreview({ sermonId }: { sermonId: string }) {
   const content = useContentList({ sermonId, generationId: generationId ?? undefined, page, pageSize: 50 }, ready);
   const retryContent = useContentList({ sermonId, generationId: retryId ?? undefined, page: 1, pageSize: 50 }, !!retryId && ready);
   const failed = job.data?.jobs.filter((item) => item.status === "FAILED") ?? [];
+  const [postAllOpen, setPostAllOpen] = useState(false);
+  const approveAll = useApproveContentBatch();
+  const allItems = [...(content.data?.items ?? []), ...(retryId ? retryContent.data?.items ?? [] : [])];
+  const postable = allItems.filter(isPostable);
+  const draftIds = allItems.filter((item) => item.status === "DRAFT").map((item) => item.id);
+
+  function approveDrafts() {
+    approveAll.mutate(draftIds, {
+      onSuccess: ({ approved, failed }) => {
+        if (failed.length) toast.error(`${approved.length} approved, ${failed.length} couldn’t be approved. Try again.`);
+        else toast.success(`${approved.length} ${approved.length === 1 ? "draft" : "drafts"} approved`);
+      },
+      onError: () => toast.error("Couldn’t approve your drafts. Please try again."),
+    });
+  }
 
   return (
     <>
       <PageHeader title="Preview your week" description={sermon.data ? `Content created from “${sermon.data.title}”. Review each draft before approving or publishing.` : "Review your generated content."}
-        actions={<Button asChild variant="outline"><Link href={`/content?sermonId=${encodeURIComponent(sermonId)}`}>View all content</Link></Button>} />
-      <p className="mb-6 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Your content is saved as drafts. Open any item to edit, approve, or schedule it.</p>
+        actions={<>
+          {ready && postable.length > 0 && <Button onClick={() => setPostAllOpen(true)}><Send />Approve &amp; post…</Button>}
+          {ready && draftIds.length > 0 && <Button variant="outline" loading={approveAll.isPending} onClick={approveDrafts}><CheckCheck />Approve all ({draftIds.length})</Button>}
+          <Button asChild variant="outline"><Link href={`/content?sermonId=${encodeURIComponent(sermonId)}`}>View all content</Link></Button>
+        </>} />
+      <p className="mb-6 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Your content is saved as drafts. Approve what looks good right here, or open any item to edit or schedule it.</p>
       {job.isError ? <ErrorState error={job.error} onRetry={() => job.refetch()} /> : !ready ? (
         <section className="rounded-lg border border-border bg-card p-5" aria-live="polite">
           <h2 className="mb-4 flex items-center gap-2 font-semibold"><Loader2 className="size-4 animate-spin text-accent" />Generating your week…</h2>
@@ -42,15 +79,16 @@ export function WeekPreview({ sermonId }: { sermonId: string }) {
           {content.isPending || (retryId && retryContent.isPending) ? <LoadingState label="Loading your drafts…" /> : content.isError ? <ErrorState error={content.error} onRetry={() => content.refetch()} /> : retryId && retryContent.isError ? <ErrorState error={retryContent.error} onRetry={() => retryContent.refetch()} /> : !content.data.items.length && !retryContent.data?.items.length ? <EmptyState title="No drafts to preview yet" description="Return to your sermon to generate content." action={<Button asChild><Link href={`/sermons/${encodeURIComponent(sermonId)}`}>Back to sermon</Link></Button>} /> : (
             <div className="space-y-8">
               {GENERATION_OPTIONS.map(({ type }) => {
-                const items = [...content.data.items, ...(retryId ? retryContent.data?.items ?? [] : [])].filter((item) => item.type === type);
+                const items = [...content.data.items, ...(retryId ? retryContent.data?.items ?? [] : [])].filter((item) => item.type === type).sort(byTitle);
                 if (!items.length) return null;
-                return <section key={type}><h2 className="mb-3 text-lg font-semibold">{CONTENT_TYPE_META[type].label} <span className="text-sm font-normal text-muted-foreground">({items.length})</span></h2><div className="grid gap-4 md:grid-cols-2">{items.map((item) => <article key={item.id} className="flex flex-col rounded-lg border border-border bg-card p-5"><div className="mb-3 flex items-start justify-between gap-3"><h3 className="font-semibold">{item.title}</h3><StatusBadge status={item.status} /></div>{item.scripture && <p className="mb-3 text-sm text-accent">{item.scripture}</p>}<p className="mb-5 whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p><Button asChild variant="outline" size="sm" className="mt-auto self-start"><Link href={`/content/${item.id}`}><Pencil />Open &amp; edit</Link></Button></article>)}</div></section>;
+                return <section key={type}><h2 className="mb-3 text-lg font-semibold">{CONTENT_TYPE_META[type].label} <span className="text-sm font-normal text-muted-foreground">({items.length})</span></h2><div className="grid gap-4 md:grid-cols-2">{items.map((item) => <article key={item.id} className="flex flex-col rounded-lg border border-border bg-card p-5"><div className="mb-3 flex items-start justify-between gap-3"><h3 className="font-semibold">{item.title}</h3><StatusBadge status={item.status} /></div>{item.scripture && <p className="mb-3 text-sm text-accent">{item.scripture}</p>}<p className="mb-5 whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p><div className="mt-auto flex flex-wrap gap-2"><ApproveButton item={item} /><Button asChild variant="outline" size="sm"><Link href={`/content/${item.id}`}><Pencil />Open &amp; edit</Link></Button></div></article>)}</div></section>;
               })}
               <Pagination page={page} pageSize={content.data.pageSize} total={content.data.total} onPageChange={setPage} />
             </div>
           )}
         </>
       )}
+      <PostAllDialog items={postable} open={postAllOpen} onOpenChange={setPostAllOpen} onPosted={() => router.push("/dashboard")} />
     </>
   );
 }

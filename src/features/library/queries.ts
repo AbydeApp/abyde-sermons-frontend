@@ -3,8 +3,9 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { libraryService, type LibraryParams } from "@/services/library.service";
 
-export const useLibrary = (params: LibraryParams) =>
+export const useLibrary = (params: LibraryParams, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ["library", params],
     queryFn: () => libraryService.search(params),
     placeholderData: keepPreviousData,

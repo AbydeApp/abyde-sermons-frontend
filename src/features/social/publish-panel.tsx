@@ -19,7 +19,7 @@ import { formatDateTime } from "@/utils/format";
 import { LAGOS_LABEL, defaultScheduleInput, fromLagosInput } from "@/utils/lagos";
 import { useCapabilities, useConnections, usePostActions, usePosts } from "./queries";
 import { PlatformGlyph, PlatformResults, PublishProgress, SocialStatusBadge } from "./status";
-import { mediaKindOf, validatePublish } from "./validation";
+import { defaultCaption, mediaKindOf, validatePublish } from "./validation";
 
 type Action = "draft" | "publish" | "schedule";
 
@@ -56,7 +56,7 @@ export function PublishPanel({ content, captionControl }: { content: ContentItem
   const actions = usePostActions();
 
   const reel = content.structured?.reel;
-  const initialCaption = reel?.caption ?? (content.type === "QUOTE" ? `“${content.body.replace(/^“|”$/g, "")}”` : content.body);
+  const initialCaption = defaultCaption(content);
   const [ownCaption, setOwnCaption] = useState(initialCaption);
   const caption = captionControl ? captionControl.value : ownCaption;
   const setCaption = captionControl ? captionControl.onChange : setOwnCaption;

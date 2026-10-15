@@ -14,32 +14,31 @@ export const loginSchema = z.object({
 });
 export type LoginValues = z.infer<typeof loginSchema>;
 
-export const signupSchema = z
-  .object({
-    fullName: z.string().trim().min(2, "Enter your full name"),
-    email,
-    password,
-    confirmPassword: z.string().min(1, "Confirm your password"),
-    phoneNumber: z
-      .string()
-      .trim()
-      .min(1, "Enter your phone number")
-      .refine((value) => {
-        const digits = value.replace(/\D/g, "");
-        return /^\+?[0-9\s().-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
-      }, "Enter a valid phone number"),
-    churchName: z.string().trim().optional(),
-    denomination: z.string().trim().optional(),
-    churchAddress: z.string().trim().optional(),
-    primaryColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
-    secondaryColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
-    accentColor: z.string().trim().optional().or(z.literal("")).refine((value) => !value || /^#[0-9a-f]{6}$/i.test(value), "Use a hex color like #B5502F"),
-  })
-  .refine((v) => v.password === v.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords don't match",
-  });
+/** Optional phone number, validated only when one is entered. */
+export const optionalPhone = z
+  .string()
+  .trim()
+  .optional()
+  .refine((value) => {
+    if (!value) return true;
+    const digits = value.replace(/\D/g, "");
+    return /^\+?[0-9\s().-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
+  }, "Enter a valid phone number");
+
+/** Signup asks for the bare minimum; everything else lives in Settings and Brand Studio. */
+export const signupSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter your full name"),
+  email,
+  password,
+  churchName: z.string().trim().optional(),
+});
 export type SignupValues = z.infer<typeof signupSchema>;
+
+export const OTP_LENGTH = 6;
+export const otpSchema = z.object({
+  code: z.string().trim().regex(new RegExp(`^\\d{${OTP_LENGTH}}$`), `Enter the ${OTP_LENGTH}-digit code`),
+});
+export type OtpValues = z.infer<typeof otpSchema>;
 
 export const forgotSchema = z.object({ email });
 export type ForgotValues = z.infer<typeof forgotSchema>;

@@ -54,7 +54,7 @@ export function BrandPreview({
 }) {
   const { width, height } = FORMATS[format];
   const dark = DARK_VARIANTS.includes(variant);
-  const fg = dark ? "#ffffff" : "#1B1A17";
+  const fg = dark ? "#ffffff" : "#1C1626";
   const logo = (dark ? (brand.alternateLogoUrl ?? brand.logoUrl) : brand.logoUrl) ?? null;
   const wide = format === "facebook" || format === "youtube-thumbnail";
 
@@ -62,7 +62,7 @@ export function BrandPreview({
     variant === "bold"
       ? { background: brand.primaryColor }
       : variant === "minimal"
-        ? { background: "#FAF9F6" }
+        ? { background: "#FFFFFF" }
         : variant === "gradient"
           ? { background: `linear-gradient(135deg, ${brand.primaryColor}, ${brand.secondaryColor})` }
           : variant === "photo"

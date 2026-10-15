@@ -17,8 +17,9 @@ export const sermonKeys = {
 export const useDashboard = () =>
   useQuery({ queryKey: sermonKeys.dashboard, queryFn: ({ signal }) => sermonService.dashboard(signal) });
 
-export const useSermons = (params: SermonListParams) =>
+export const useSermons = (params: SermonListParams, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: sermonKeys.list(params),
     queryFn: ({ signal }) => sermonService.list(params, signal),
     placeholderData: keepPreviousData,
